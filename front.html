@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel de Controle ESP8266 - LED MQTT</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              500: '#22c55e',
+              600: '#16a34a',
+              900: '#14532d',
+            },
+            ledOn: '#facc15',
+            ledOff: '#1f2937'
+          },
+          boxShadow: {
+            'glow-yellow': '0 0 45px 10px rgba(250, 204, 21, 0.65)',
+            'glow-off': '0 0 20px 2px rgba(0, 0, 0, 0.8) inset',
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- MQTT.js Library for Browser WebSockets -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    code, pre, .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    
+    /* Custom Glow Transitions */
+    .led-box {
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .led-bulb {
+      transition: all 0.3s ease-in-out;
+    }
+
+    /* Custom scrollbar for console */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between">
+
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-400">
+          <i class="fa-solid font-bold fa-microchip text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-wide text-white">ESP8266 LED Controller</h1>
+          <p class="text-xs text-slate-400 flex items-center gap-2">
+            <span>Tópico: <span class="text-amber-400 font-mono font-semibold" id="headerTopic">lab01/kavi</span></span>
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+            <span id="connectionBadge" class="text-rose-400 font-semibold">Desconectado</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button id="toggleConfigBtn" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition flex items-center gap-2">
+          <i class="fa-solid fa-gear"></i>
+          <span>Configurações Broker</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div id="configPanel" class="hidden border-b border-slate-800 bg-slate-900/90 px-4 py-4 transition-all">
+    <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1">Host HiveMQ WSS</label>
+        <input type="text" id="cfgHost" value="d895a66657a84666a1d0f741b27e2be8.s1.eu.hivemq.cloud" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 font-mono text-xs focus:outline-none focus:border-amber-500">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1">Porta WSS</label>
+        <input type="text" id="cfgPort" value="8884" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 font-mono text-xs focus:outline-none focus:border-amber-500">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1">Usuário / Senha</label>
+        <div class="flex gap-2">
+          <input type="text" id="cfgUser" value="mario" class="w-1/2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-2 text-slate-300 font-mono text-xs focus:outline-none focus:border-amber-500">
+          <input type="password" id="cfgPass" value="senai123" class="w-1/2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-2 text-slate-300 font-mono text-xs focus:outline-none focus:border-amber-500">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1">Tópico MQTT</label>
+        <div class="flex gap-2">
+          <input type="text" id="cfgTopic" value="lab01/kavi" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-amber-400 font-mono text-xs focus:outline-none focus:border-amber-500">
+          <button onclick="reconnectMQTT()" class="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs shrink-0">Reconectar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <main class="max-w-6xl w-full mx-auto px-4 py-8 flex-grow grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+
+    <!-- Left Column: LED Canvas Display -->
+    <section class="lg:col-span-6 flex flex-col items-center justify-center bg-slate-900/50 border border-slate-800/80 rounded-2xl p-8 backdrop-blur-sm relative overflow-hidden">
+
+      <div class="absolute top-4 left-4 text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="statusDot"></span>
+        <span>Estado Atual do LED</span>
+      </div>
+
+      <!-- MAIN REQUIRED CUSTOM DIV WITH YELLOW & BLACK BACKGROUND RECOGNITION -->
+      <div id="ledIndicatorBox" class="led-box my-8 w-64 h-64 md:w-72 md:h-72 rounded-3xl bg-slate-950 border-4 border-slate-800 flex flex-col items-center justify-center shadow-glow-off relative group cursor-pointer" onclick="toggleLED()">
+        
+        <!-- Glowing LED Bulb Icon -->
+        <div id="ledBulbIcon" class="led-bulb text-6xl text-slate-700 mb-4 transform group-hover:scale-105 transition-transform">
+          <i class="fa-solid fa-lightbulb"></i>
+        </div>
+
+        <!-- Text Label displaying status -->
+        <div id="ledStateText" class="text-2xl font-black tracking-wider text-slate-500 uppercase">
+          DESLIGADO
+        </div>
+
+        <!-- Helper subtext -->
+        <p id="ledStateSubtext" class="text-xs text-slate-600 mt-1 font-mono">
+          {"comando": "desligar"}
+        </p>
+
+        <!-- Decorative inner ring -->
+        <div class="absolute inset-2 border border-white/5 rounded-2xl pointer-events-none"></div>
+      </div>
+
+      <!-- Interactive Quick Action Buttons -->
+      <div class="w-full max-w-sm grid grid-cols-2 gap-4 mt-2">
+        <!-- LIGAR BUTTON -->
+        <button onclick="sendControlCommand('ligar')" class="relative group overflow-hidden rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold py-3.5 px-4 transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2">
+          <i class="fa-solid fa-power-off text-lg"></i>
+          <span>ACENDER (LIGAR)</span>
+        </button>
+
+        <!-- DESLIGAR BUTTON -->
+        <button onclick="sendControlCommand('desligar')" class="relative group overflow-hidden rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 font-bold py-3.5 px-4 transition-all flex items-center justify-center gap-2">
+          <i class="fa-solid fa-plug-circle-xmark text-lg"></i>
+          <span>APAGAR (DESLIGAR)</span>
+        </button>
+      </div>
+
+      <div class="mt-4 text-center">
+        <span class="text-xs text-slate-500">Clique na caixa do LED ou utilize os botões para transmitir mensagens MQTT</span>
+      </div>
+    </section>
+
+    <!-- Right Column: JSON Preview and Event Log Console -->
+    <section class="lg:col-span-6 flex flex-col gap-6">
+
+      <!-- Code & Request Preview -->
+      <div class="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-5">
+        <h2 class="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+          <i class="fa-solid fa-code text-amber-400"></i>
+          <span>Último JSON Trafegado no MQTT</span>
+        </h2>
+        <div class="bg-slate-950 rounded-xl p-3 border border-slate-800/80 font-mono text-xs text-slate-300">
+          <p class="text-slate-500 mb-1">// Estrutura de dados recebida/enviada ao ESP8266:</p>
+          <p class="text-emerald-400" id="jsonPreview">{ "comando": "desligar" }</p>
+        </div>
+      </div>
+
+      <!-- Live Event Console Log -->
+      <div class="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-5 flex flex-col h-80">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold text-slate-300 flex items-center gap-2">
+            <i class="fa-solid fa-terminal text-amber-400"></i>
+            <span>Console de Eventos WebSocket MQTT</span>
+          </h2>
+          <button onclick="clearLogs()" class="text-xs text-slate-500 hover:text-slate-300 transition">
+            Limpar
+          </button>
+        </div>
+
+        <div id="consoleLog" class="flex-grow bg-slate-950 rounded-xl p-3 border border-slate-800 font-mono text-xs overflow-y-auto space-y-1.5 text-slate-400">
+          <div class="text-slate-600">[SISTEMA] Inicializando cliente MQTT.js WebSockets...</div>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <footer class="border-t border-slate-800/60 bg-slate-950 py-4 px-4">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center text-xs text-slate-500 gap-2">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        <span>Conectado via MQTT.js WSS (WebSockets)</span>
+      </div>
+      <div>
+        Laboratório IoT &bull; Tópico: <span class="font-mono text-slate-400" id="footerTopic">lab01/kavi</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    let isLedOn = false;
+    let mqttClient = null;
+
+    // Toggle Config Panel
+    document.getElementById('toggleConfigBtn').addEventListener('click', () => {
+      document.getElementById('configPanel').classList.toggle('hidden');
+    });
+
+    // Helper: Log message to the console UI
+    function logEvent(msg, type = 'info') {
+      const consoleBox = document.getElementById('consoleLog');
+      const time = new Date().toLocaleTimeString();
+      const entry = document.createElement('div');
+      
+      let colorClass = 'text-slate-400';
+      if (type === 'success') colorClass = 'text-emerald-400';
+      if (type === 'error') colorClass = 'text-rose-400';
+      if (type === 'warn') colorClass = 'text-amber-400';
+      if (type === 'sent') colorClass = 'text-sky-400';
+
+      entry.className = `${colorClass} flex items-start gap-2`;
+      entry.innerHTML = `<span class="text-slate-600 shrink-0">[${time}]</span> <span>${msg}</span>`;
+      
+      consoleBox.appendChild(entry);
+      consoleBox.scrollTop = consoleBox.scrollHeight;
+    }
+
+    function clearLogs() {
+      document.getElementById('consoleLog').innerHTML = '<div class="text-slate-600">[SISTEMA] Log limpo.</div>';
+    }
+
+    // Toggle LED state on container click
+    function toggleLED() {
+      if (isLedOn) {
+        sendControlCommand('desligar');
+      } else {
+        sendControlCommand('ligar');
+      }
+    }
+
+    // Function to update visual state (YELLOW when LIGADO, BLACK/DARK when DESLIGADO)
+    function updateVisualState(turnOn) {
+      isLedOn = turnOn;
+
+      const ledBox = document.getElementById('ledIndicatorBox');
+      const bulbIcon = document.getElementById('ledBulbIcon');
+      stateText = document.getElementById('ledStateText');
+      const subtext = document.getElementById('ledStateSubtext');
+      const statusDot = document.getElementById('statusDot');
+
+      if (turnOn) {
+        // LED ACESO (AMARELO)
+        ledBox.className = "led-box my-8 w-64 h-64 md:w-72 md:h-72 rounded-3xl bg-amber-400 border-4 border-amber-300 flex flex-col items-center justify-center shadow-glow-yellow relative group cursor-pointer";
+        bulbIcon.className = "led-bulb text-7xl text-slate-950 mb-4 animate-pulse";
+        stateText.className = "text-3xl font-black tracking-wider text-slate-950 uppercase";
+        stateText.textContent = "LIGADO";
+        subtext.className = "text-xs text-slate-800 mt-1 font-mono font-bold";
+        subtext.textContent = '{"comando": "ligar"}';
+        
+        statusDot.className = "w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_#facc15]";
+      } else {
+        // LED APAGADO (PRETO / ESCURO)
+        ledBox.className = "led-box my-8 w-64 h-64 md:w-72 md:h-72 rounded-3xl bg-slate-950 border-4 border-slate-800 flex flex-col items-center justify-center shadow-glow-off relative group cursor-pointer";
+        bulbIcon.className = "led-bulb text-6xl text-slate-700 mb-4 transform group-hover:scale-105 transition-transform";
+        stateText.className = "text-2xl font-black tracking-wider text-slate-500 uppercase";
+        stateText.textContent = "DESLIGADO";
+        subtext.className = "text-xs text-slate-600 mt-1 font-mono";
+        subtext.textContent = '{"comando": "desligar"}';
+
+        statusDot.className = "w-2.5 h-2.5 rounded-full bg-slate-600";
+      }
+    }
+
+    // Connect to HiveMQ via MQTT.js (WSS)
+    function connectMQTT() {
+      const host = document.getElementById('cfgHost').value.trim();
+      const port = document.getElementById('cfgPort').value.trim();
+      const user = document.getElementById('cfgUser').value.trim();
+      const pass = document.getElementById('cfgPass').value.trim();
+      const topic = document.getElementById('cfgTopic').value.trim();
+
+      document.getElementById('headerTopic').textContent = topic;
+      document.getElementById('footerTopic').textContent = topic;
+
+      const connectUrl = `wss://${host}:${port}/mqtt`;
+      logEvent(`Conectando ao HiveMQ Cloud via WebSocket: <code>${connectUrl}</code>...`, 'info');
+
+      const clientId = 'web_client_' + Math.random().toString(16).substring(2, 8);
+
+      if (mqttClient) {
+        mqttClient.end(true);
+      }
+
+      mqttClient = mqtt.connect(connectUrl, {
+        clientId: clientId,
+        username: user,
+        password: pass,
+        clean: true,
+        connectTimeout: 5000,
+        reconnectPeriod: 3000
+      });
+
+      mqttClient.on('connect', () => {
+        logEvent(`Conectado com sucesso ao HiveMQ! (ID: ${clientId})`, 'success');
+        document.getElementById('connectionBadge').textContent = "Conectado";
+        document.getElementById('connectionBadge').className = "text-emerald-400 font-semibold";
+
+        // Subscribe to configured topic
+        mqttClient.subscribe(topic, { qos: 0 }, (err) => {
+          if (!err) {
+            logEvent(`Inscrito no tópico: <strong>${topic}</strong>`, 'success');
+          } else {
+            logEvent(`Erro ao se inscrever no tópico: ${err.message}`, 'error');
+          }
+        });
+      });
+
+      mqttClient.on('message', (receivedTopic, payload) => {
+        const messageStr = payload.toString();
+        logEvent(`Mensagem recebida em [${receivedTopic}]: <code>${messageStr}</code>`, 'info');
+        
+        try {
+          const data = JSON.parse(messageStr);
+          document.getElementById('jsonPreview').textContent = JSON.stringify(data, null, 2);
+
+          if (data && typeof data.comando === 'string') {
+            const cmd = data.comando.toLowerCase();
+            if (cmd === 'ligar') {
+              updateVisualState(true);
+              logEvent('Reconhecido comando "LIGAR": LED ativado (Amarelo)', 'success');
+            } else if (cmd === 'desligar') {
+              updateVisualState(false);
+              logEvent('Reconhecido comando "DESLIGAR": LED desativado (Preto)', 'warn');
+            } else {
+              logEvent(`Comando JSON desconhecido recebido: ${data.comando}`, 'warn');
+            }
+          }
+        } catch (e) {
+          logEvent(`Payload não é um JSON válido: ${messageStr}`, 'error');
+        }
+      });
+
+      mqttClient.on('error', (err) => {
+        logEvent(`Erro MQTT: ${err.message}`, 'error');
+      });
+
+      mqttClient.on('offline', () => {
+        document.getElementById('connectionBadge').textContent = "Desconectado";
+        document.getElementById('connectionBadge').className = "text-rose-400 font-semibold";
+      });
+    }
+
+    function reconnectMQTT() {
+      connectMQTT();
+    }
+
+    // Publish control command to topic
+    function sendControlCommand(action) {
+      const commandStr = action.toLowerCase();
+      const topic = document.getElementById('cfgTopic').value.trim() || 'lab01/kavi';
+      const payloadObj = { comando: commandStr };
+      const payloadString = JSON.stringify(payloadObj);
+
+      document.getElementById('jsonPreview').textContent = JSON.stringify(payloadObj, null, 2);
+
+      if (!mqttClient || !mqttClient.connected) {
+        logEvent('Tentativa de envio sem conexão MQTT ativa. Reconectando...', 'error');
+        reconnectMQTT();
+        return;
+      }
+
+      mqttClient.publish(topic, payloadString, { qos: 0 }, (err) => {
+        if (!err) {
+          logEvent(`Publicado no tópico <strong>${topic}</strong>: <code>${payloadString}</code>`, 'sent');
+        } else {
+          logEvent(`Falha ao publicar mensagem: ${err.message}`, 'error');
+        }
+      });
+    }
+
+    // Initialize state & connection on load
+    window.addEventListener('load', () => {
+      updateVisualState(false);
+      connectMQTT();
+    });
+  </script>
+</body>
+</html>
