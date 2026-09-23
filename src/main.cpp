@@ -22,6 +22,7 @@ const char *mqtt_password = "senai123";
 
 // Tópico para receber comandos 
 const char *topic_led_control = "lab01/kavi";
+const char *topic_led_control2 = "lab01/kavi2";
 
 
 WiFiClientSecure espClient;

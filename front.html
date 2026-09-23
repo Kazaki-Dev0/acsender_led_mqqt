@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Painel de Controle ESP8266 - LED MQTT</title>
+  <title>Painel de Controle ESP8266 - Dual LED MQTT</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -13,12 +13,6 @@
       theme: {
         extend: {
           colors: {
-            brand: {
-              50: '#f0fdf4',
-              500: '#22c55e',
-              600: '#16a34a',
-              900: '#14532d',
-            },
             ledOn: '#facc15',
             ledOff: '#1f2937'
           },
@@ -34,7 +28,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
-  <!-- MQTT.js Library for Browser WebSockets -->
+  <!-- MQTT.js Library -->
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
   <!-- Google Fonts -->
@@ -50,7 +44,6 @@
       font-family: 'JetBrains Mono', monospace;
     }
     
-    /* Custom Glow Transitions */
     .led-box {
       transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
@@ -59,7 +52,6 @@
       transition: all 0.3s ease-in-out;
     }
 
-    /* Custom scrollbar for console */
     ::-webkit-scrollbar {
       width: 6px;
       height: 6px;
@@ -82,66 +74,59 @@
     <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
       <div class="flex items-center space-x-3">
         <div class="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-400">
-          <i class="fa-solid font-bold fa-microchip text-xl"></i>
+          <i class="fa-solid fa-microchip text-xl"></i>
         </div>
         <div>
-          <h1 class="text-lg font-bold tracking-wide text-white">ESP8266 LED Controller</h1>
+          <h1 class="text-lg font-bold tracking-wide text-white">ESP8266 Dual LED Controller</h1>
           <p class="text-xs text-slate-400 flex items-center gap-2">
-            <span>Tópico: <span class="text-amber-400 font-mono font-semibold" id="headerTopic">lab01/kavi</span></span>
+            <span>Status: <span id="connectionBadge" class="text-amber-400 font-semibold">Conectando...</span></span>
             <span class="inline-block w-1.5 h-1.5 rounded-full bg-slate-600"></span>
-            <span id="connectionBadge" class="text-rose-400 font-semibold">Desconectado</span>
+            <span class="text-slate-400">Tópicos: <span class="text-amber-400 font-mono">lab01/kavi</span> & <span class="text-amber-400 font-mono">lab01/kavi2</span></span>
           </p>
         </div>
       </div>
 
-      <div class="flex items-center gap-3">
-        <button id="toggleConfigBtn" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition flex items-center gap-2">
-          <i class="fa-solid fa-gear"></i>
-          <span>Configurações Broker</span>
-        </button>
-      </div>
+      <button onclick="reconnectMQTT()" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition flex items-center gap-2">
+        <i class="fa-solid fa-rotate-right"></i>
+        <span>Reconectar</span>
+      </button>
     </div>
   </header>
 
-  <div id="configPanel" class="hidden border-b border-slate-800 bg-slate-900/90 px-4 py-4 transition-all">
-    <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-      <div>
-        <label class="block text-xs font-medium text-slate-400 mb-1">Host HiveMQ WSS</label>
-        <input type="text" id="cfgHost" value="d895a66657a84666a1d0f741b27e2be8.s1.eu.hivemq.cloud" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 font-mono text-xs focus:outline-none focus:border-amber-500">
-      </div>
-      <div>
-        <label class="block text-xs font-medium text-slate-400 mb-1">Porta WSS</label>
-        <input type="text" id="cfgPort" value="8884" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 font-mono text-xs focus:outline-none focus:border-amber-500">
-      </div>
-      <div>
-        <label class="block text-xs font-medium text-slate-400 mb-1">Usuário / Senha</label>
-        <div class="flex gap-2">
-          <input type="text" id="cfgUser" value="mario" class="w-1/2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-2 text-slate-300 font-mono text-xs focus:outline-none focus:border-amber-500">
-          <input type="password" id="cfgPass" value="senai123" class="w-1/2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-2 text-slate-300 font-mono text-xs focus:outline-none focus:border-amber-500">
-        </div>
-      </div>
-      <div>
-        <label class="block text-xs font-medium text-slate-400 mb-1">Tópico MQTT</label>
-        <div class="flex gap-2">
-          <input type="text" id="cfgTopic" value="lab01/kavi" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-amber-400 font-mono text-xs focus:outline-none focus:border-amber-500">
-          <button onclick="reconnectMQTT()" class="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs shrink-0">Reconectar</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <main class="max-w-6xl w-full mx-auto px-4 py-8 flex-grow grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
-    <!-- Left Column: LED Canvas Display -->
-    <section class="lg:col-span-6 flex flex-col items-center justify-center bg-slate-900/50 border border-slate-800/80 rounded-2xl p-8 backdrop-blur-sm relative overflow-hidden">
+    <!-- Left Column: Dual LED Selector & Canvas Display -->
+    <section class="lg:col-span-6 flex flex-col items-center justify-center bg-slate-900/50 border border-slate-800/80 rounded-2xl p-6 md:p-8 backdrop-blur-sm relative overflow-hidden">
 
-      <div class="absolute top-4 left-4 text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-        <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="statusDot"></span>
-        <span>Estado Atual do LED</span>
+      <!-- LED Selection Tabs -->
+      <div class="w-full mb-6">
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2 text-center">
+          Selecione o LED a ser controlado
+        </label>
+        <div class="grid grid-cols-2 gap-3 p-1.5 bg-slate-950/80 border border-slate-800 rounded-xl">
+          <!-- LED 1 Button (D2) -->
+          <button id="tabLed1" onclick="selectLed('led1')" class="py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 bg-amber-500 text-slate-950 shadow-md">
+            <i class="fa-solid fa-lightbulb"></i>
+            <span>LED 1 (D2)</span>
+            <span id="badgeLed1" class="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-900 text-amber-400 font-mono">DESLIGADO</span>
+          </button>
+
+          <!-- LED 2 Button (D1) -->
+          <button id="tabLed2" onclick="selectLed('led2')" class="py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 bg-slate-800 text-slate-400 hover:text-slate-200">
+            <i class="fa-solid fa-lightbulb"></i>
+            <span>LED 2 (D1)</span>
+            <span id="badgeLed2" class="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-900 text-slate-400 font-mono">DESLIGADO</span>
+          </button>
+        </div>
       </div>
 
-      <!-- MAIN REQUIRED CUSTOM DIV WITH YELLOW & BLACK BACKGROUND RECOGNITION -->
-      <div id="ledIndicatorBox" class="led-box my-8 w-64 h-64 md:w-72 md:h-72 rounded-3xl bg-slate-950 border-4 border-slate-800 flex flex-col items-center justify-center shadow-glow-off relative group cursor-pointer" onclick="toggleLED()">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2 mb-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="statusDot"></span>
+        <span>Estado do <strong id="activeLedTitle" class="text-slate-300">LED 1 (D2) - lab01/kavi</strong></span>
+      </div>
+
+      <!-- MAIN CUSTOM DIV WITH YELLOW & BLACK BACKGROUND RECOGNITION -->
+      <div id="ledIndicatorBox" class="led-box my-6 w-64 h-64 md:w-72 md:h-72 rounded-3xl bg-slate-950 border-4 border-slate-800 flex flex-col items-center justify-center shadow-glow-off relative group cursor-pointer" onclick="toggleActiveLED()">
         
         <!-- Glowing LED Bulb Icon -->
         <div id="ledBulbIcon" class="led-bulb text-6xl text-slate-700 mb-4 transform group-hover:scale-105 transition-transform">
@@ -178,7 +163,7 @@
       </div>
 
       <div class="mt-4 text-center">
-        <span class="text-xs text-slate-500">Clique na caixa do LED ou utilize os botões para transmitir mensagens MQTT</span>
+        <span class="text-xs text-slate-500">Clique na caixa do LED ou nos botões para enviar comandos MQTT</span>
       </div>
     </section>
 
@@ -189,10 +174,10 @@
       <div class="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-5">
         <h2 class="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
           <i class="fa-solid fa-code text-amber-400"></i>
-          <span>Último JSON Trafegado no MQTT</span>
+          <span>Último JSON Trafegado</span>
         </h2>
         <div class="bg-slate-950 rounded-xl p-3 border border-slate-800/80 font-mono text-xs text-slate-300">
-          <p class="text-slate-500 mb-1">// Estrutura de dados recebida/enviada ao ESP8266:</p>
+          <p class="text-slate-500 mb-1">// Estrutura enviada ao ESP8266 no tópico <span id="jsonTopicLabel" class="text-amber-400">lab01/kavi</span>:</p>
           <p class="text-emerald-400" id="jsonPreview">{ "comando": "desligar" }</p>
         </div>
       </div>
@@ -210,7 +195,7 @@
         </div>
 
         <div id="consoleLog" class="flex-grow bg-slate-950 rounded-xl p-3 border border-slate-800 font-mono text-xs overflow-y-auto space-y-1.5 text-slate-400">
-          <div class="text-slate-600">[SISTEMA] Inicializando cliente MQTT.js WebSockets...</div>
+          <div class="text-slate-600">[SISTEMA] Conectando ao servidor MQTT...</div>
         </div>
       </div>
 
@@ -224,21 +209,35 @@
         <span>Conectado via MQTT.js WSS (WebSockets)</span>
       </div>
       <div>
-        Laboratório IoT &bull; Tópico: <span class="font-mono text-slate-400" id="footerTopic">lab01/kavi</span>
+        Laboratório IoT &bull; LED 1: <span class="font-mono text-slate-400">lab01/kavi (D2)</span> | LED 2: <span class="font-mono text-slate-400">lab01/kavi2 (D1)</span>
       </div>
     </div>
   </footer>
 
   <script>
-    let isLedOn = false;
+    // ==========================================
+    // CONFIGURAÇÕES DO BROKER E TÓPICOS
+    // ==========================================
+    const MQTT_CONFIG = {
+      host: 'd895a66657a84666a1d0f741b27e2be8.s1.eu.hivemq.cloud',
+      port: '8884',
+      user: 'mario',
+      pass: 'senai123',
+      topics: {
+        led1: 'lab01/kavi',   // LED 1 - Pino D2
+        led2: 'lab01/kavi2'   // LED 2 - Pino D1
+      }
+    };
+
+    // Global App State
+    let activeLed = 'led1'; // 'led1' or 'led2'
+    let ledStates = {
+      led1: false, // false = desligado, true = ligado
+      led2: false
+    };
     let mqttClient = null;
 
-    // Toggle Config Panel
-    document.getElementById('toggleConfigBtn').addEventListener('click', () => {
-      document.getElementById('configPanel').classList.toggle('hidden');
-    });
-
-    // Helper: Log message to the console UI
+    // Helper to log events
     function logEvent(msg, type = 'info') {
       const consoleBox = document.getElementById('consoleLog');
       const time = new Date().toLocaleTimeString();
@@ -261,158 +260,190 @@
       document.getElementById('consoleLog').innerHTML = '<div class="text-slate-600">[SISTEMA] Log limpo.</div>';
     }
 
-    // Toggle LED state on container click
-    function toggleLED() {
-      if (isLedOn) {
-        sendControlCommand('desligar');
+    // Switch active LED selection tab (LED 1 vs LED 2)
+    function selectLed(ledKey) {
+      activeLed = ledKey;
+      
+      const tab1 = document.getElementById('tabLed1');
+      const tab2 = document.getElementById('tabLed2');
+      const activeTitle = document.getElementById('activeLedTitle');
+      const jsonTopicLabel = document.getElementById('jsonTopicLabel');
+
+      if (ledKey === 'led1') {
+        tab1.className = "py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 bg-amber-500 text-slate-950 shadow-md";
+        tab2.className = "py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 bg-slate-800 text-slate-400 hover:text-slate-200";
+        activeTitle.textContent = `LED 1 (D2) - ${MQTT_CONFIG.topics.led1}`;
+        jsonTopicLabel.textContent = MQTT_CONFIG.topics.led1;
       } else {
-        sendControlCommand('ligar');
+        tab2.className = "py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 bg-amber-500 text-slate-950 shadow-md";
+        tab1.className = "py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 bg-slate-800 text-slate-400 hover:text-slate-200";
+        activeTitle.textContent = `LED 2 (D1) - ${MQTT_CONFIG.topics.led2}`;
+        jsonTopicLabel.textContent = MQTT_CONFIG.topics.led2;
       }
+
+      renderUI();
     }
 
-    // Function to update visual state (YELLOW when LIGADO, BLACK/DARK when DESLIGADO)
-    function updateVisualState(turnOn) {
-      isLedOn = turnOn;
+    // Toggle active LED on main box click
+    function toggleActiveLED() {
+      const currentState = ledStates[activeLed];
+      sendControlCommand(currentState ? 'desligar' : 'ligar');
+    }
 
+    // Update UI Elements to reflect state (AMARELO quando LIGADO, PRETO quando DESLIGADO)
+    function renderUI() {
+      const isTurnedOn = ledStates[activeLed];
+
+      // Update Active LED Box
       const ledBox = document.getElementById('ledIndicatorBox');
       const bulbIcon = document.getElementById('ledBulbIcon');
-      stateText = document.getElementById('ledStateText');
+      const stateText = document.getElementById('ledStateText');
       const subtext = document.getElementById('ledStateSubtext');
       const statusDot = document.getElementById('statusDot');
 
-      if (turnOn) {
-        // LED ACESO (AMARELO)
-        ledBox.className = "led-box my-8 w-64 h-64 md:w-72 md:h-72 rounded-3xl bg-amber-400 border-4 border-amber-300 flex flex-col items-center justify-center shadow-glow-yellow relative group cursor-pointer";
+      if (isTurnedOn) {
+        ledBox.className = "led-box my-6 w-64 h-64 md:w-72 md:h-72 rounded-3xl bg-amber-400 border-4 border-amber-300 flex flex-col items-center justify-center shadow-glow-yellow relative group cursor-pointer";
         bulbIcon.className = "led-bulb text-7xl text-slate-950 mb-4 animate-pulse";
         stateText.className = "text-3xl font-black tracking-wider text-slate-950 uppercase";
         stateText.textContent = "LIGADO";
         subtext.className = "text-xs text-slate-800 mt-1 font-mono font-bold";
         subtext.textContent = '{"comando": "ligar"}';
-        
         statusDot.className = "w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_#facc15]";
       } else {
-        // LED APAGADO (PRETO / ESCURO)
-        ledBox.className = "led-box my-8 w-64 h-64 md:w-72 md:h-72 rounded-3xl bg-slate-950 border-4 border-slate-800 flex flex-col items-center justify-center shadow-glow-off relative group cursor-pointer";
+        ledBox.className = "led-box my-6 w-64 h-64 md:w-72 md:h-72 rounded-3xl bg-slate-950 border-4 border-slate-800 flex flex-col items-center justify-center shadow-glow-off relative group cursor-pointer";
         bulbIcon.className = "led-bulb text-6xl text-slate-700 mb-4 transform group-hover:scale-105 transition-transform";
         stateText.className = "text-2xl font-black tracking-wider text-slate-500 uppercase";
         stateText.textContent = "DESLIGADO";
         subtext.className = "text-xs text-slate-600 mt-1 font-mono";
         subtext.textContent = '{"comando": "desligar"}';
-
         statusDot.className = "w-2.5 h-2.5 rounded-full bg-slate-600";
       }
+
+      // Update Badges on Tabs
+      const badge1 = document.getElementById('badgeLed1');
+      const badge2 = document.getElementById('badgeLed2');
+
+      badge1.textContent = ledStates.led1 ? "LIGADO" : "DESLIGADO";
+      badge1.className = `ml-1 px-1.5 py-0.5 rounded text-[10px] font-mono ${ledStates.led1 ? 'bg-amber-950 text-amber-300 font-bold' : 'bg-slate-900 text-slate-400'}`;
+
+      badge2.textContent = ledStates.led2 ? "LIGADO" : "DESLIGADO";
+      badge2.className = `ml-1 px-1.5 py-0.5 rounded text-[10px] font-mono ${ledStates.led2 ? 'bg-amber-950 text-amber-300 font-bold' : 'bg-slate-900 text-slate-400'}`;
     }
 
-    // Connect to HiveMQ via MQTT.js (WSS)
+    // Connect to HiveMQ MQTT Broker over WSS (WebSockets)
     function connectMQTT() {
-      const host = document.getElementById('cfgHost').value.trim();
-      const port = document.getElementById('cfgPort').value.trim();
-      const user = document.getElementById('cfgUser').value.trim();
-      const pass = document.getElementById('cfgPass').value.trim();
-      const topic = document.getElementById('cfgTopic').value.trim();
-
-      document.getElementById('headerTopic').textContent = topic;
-      document.getElementById('footerTopic').textContent = topic;
-
-      const connectUrl = `wss://${host}:${port}/mqtt`;
-      logEvent(`Conectando ao HiveMQ Cloud via WebSocket: <code>${connectUrl}</code>...`, 'info');
-
+      const connectUrl = `wss://${MQTT_CONFIG.host}:${MQTT_CONFIG.port}/mqtt`;
       const clientId = 'web_client_' + Math.random().toString(16).substring(2, 8);
 
+      logEvent(`Conectando ao HiveMQ: <code>${connectUrl}</code>...`, 'info');
+
       if (mqttClient) {
-        mqttClient.end(true);
+        try { mqttClient.end(true); } catch(e) {}
       }
 
-      mqttClient = mqtt.connect(connectUrl, {
-        clientId: clientId,
-        username: user,
-        password: pass,
-        clean: true,
-        connectTimeout: 5000,
-        reconnectPeriod: 3000
-      });
+      try {
+        mqttClient = mqtt.connect(connectUrl, {
+          clientId: clientId,
+          username: MQTT_CONFIG.user,
+          password: MQTT_CONFIG.pass,
+          clean: true,
+          connectTimeout: 5000,
+          reconnectPeriod: 4000
+        });
 
-      mqttClient.on('connect', () => {
-        logEvent(`Conectado com sucesso ao HiveMQ! (ID: ${clientId})`, 'success');
-        document.getElementById('connectionBadge').textContent = "Conectado";
-        document.getElementById('connectionBadge').className = "text-emerald-400 font-semibold";
+        mqttClient.on('connect', () => {
+          logEvent(`Conectado com sucesso ao Broker MQTT!`, 'success');
+          document.getElementById('connectionBadge').textContent = "Conectado";
+          document.getElementById('connectionBadge').className = "text-emerald-400 font-semibold";
 
-        // Subscribe to configured topic
-        mqttClient.subscribe(topic, { qos: 0 }, (err) => {
-          if (!err) {
-            logEvent(`Inscrito no tópico: <strong>${topic}</strong>`, 'success');
-          } else {
-            logEvent(`Erro ao se inscrever no tópico: ${err.message}`, 'error');
+          // Subscribe to both LED topics
+          const topicsToSubscribe = [MQTT_CONFIG.topics.led1, MQTT_CONFIG.topics.led2];
+          mqttClient.subscribe(topicsToSubscribe, (err) => {
+            if (!err) {
+              logEvent(`Inscrito nos tópicos: <strong>${MQTT_CONFIG.topics.led1}</strong> e <strong>${MQTT_CONFIG.topics.led2}</strong>`, 'success');
+            } else {
+              logEvent(`Erro na inscrição dos tópicos: ${err.message}`, 'error');
+            }
+          });
+        });
+
+        mqttClient.on('message', (receivedTopic, payload) => {
+          const messageStr = payload.toString();
+          logEvent(`Mensagem recebida em [${receivedTopic}]: <code>${messageStr}</code>`, 'info');
+          
+          try {
+            const data = JSON.parse(messageStr);
+            if (data && typeof data.comando === 'string') {
+              const cmd = data.comando.toLowerCase();
+              const isLigar = (cmd === 'ligar');
+
+              if (receivedTopic === MQTT_CONFIG.topics.led1) {
+                ledStates.led1 = isLigar;
+                logEvent(`LED 1 (D2) -> ${isLigar ? 'LIGADO (Amarelo)' : 'DESLIGADO (Preto)'}`, isLigar ? 'success' : 'warn');
+              } else if (receivedTopic === MQTT_CONFIG.topics.led2) {
+                ledStates.led2 = isLigar;
+                logEvent(`LED 2 (D1) -> ${isLigar ? 'LIGADO (Amarelo)' : 'DESLIGADO (Preto)'}`, isLigar ? 'success' : 'warn');
+              }
+              
+              if (receivedTopic === MQTT_CONFIG.topics[activeLed]) {
+                document.getElementById('jsonPreview').textContent = JSON.stringify(data, null, 2);
+              }
+
+              renderUI();
+            }
+          } catch (e) {
+            logEvent(`Payload inválido recebido: ${messageStr}`, 'error');
           }
         });
-      });
 
-      mqttClient.on('message', (receivedTopic, payload) => {
-        const messageStr = payload.toString();
-        logEvent(`Mensagem recebida em [${receivedTopic}]: <code>${messageStr}</code>`, 'info');
-        
-        try {
-          const data = JSON.parse(messageStr);
-          document.getElementById('jsonPreview').textContent = JSON.stringify(data, null, 2);
+        mqttClient.on('error', (err) => {
+          logEvent(`Erro na conexão MQTT: ${err.message}`, 'error');
+        });
 
-          if (data && typeof data.comando === 'string') {
-            const cmd = data.comando.toLowerCase();
-            if (cmd === 'ligar') {
-              updateVisualState(true);
-              logEvent('Reconhecido comando "LIGAR": LED ativado (Amarelo)', 'success');
-            } else if (cmd === 'desligar') {
-              updateVisualState(false);
-              logEvent('Reconhecido comando "DESLIGAR": LED desativado (Preto)', 'warn');
-            } else {
-              logEvent(`Comando JSON desconhecido recebido: ${data.comando}`, 'warn');
-            }
-          }
-        } catch (e) {
-          logEvent(`Payload não é um JSON válido: ${messageStr}`, 'error');
-        }
-      });
+        mqttClient.on('offline', () => {
+          document.getElementById('connectionBadge').textContent = "Desconectado";
+          document.getElementById('connectionBadge').className = "text-rose-400 font-semibold";
+        });
 
-      mqttClient.on('error', (err) => {
-        logEvent(`Erro MQTT: ${err.message}`, 'error');
-      });
-
-      mqttClient.on('offline', () => {
-        document.getElementById('connectionBadge').textContent = "Desconectado";
-        document.getElementById('connectionBadge').className = "text-rose-400 font-semibold";
-      });
+      } catch (err) {
+        logEvent(`Não foi possível iniciar o cliente WebSocket: ${err.message}`, 'error');
+      }
     }
 
     function reconnectMQTT() {
       connectMQTT();
     }
 
-    // Publish control command to topic
+    // Publish control command to the currently selected LED topic
     function sendControlCommand(action) {
       const commandStr = action.toLowerCase();
-      const topic = document.getElementById('cfgTopic').value.trim() || 'lab01/kavi';
+      const targetTopic = MQTT_CONFIG.topics[activeLed];
       const payloadObj = { comando: commandStr };
       const payloadString = JSON.stringify(payloadObj);
 
       document.getElementById('jsonPreview').textContent = JSON.stringify(payloadObj, null, 2);
 
+      // Local State Optimistic Update
+      ledStates[activeLed] = (commandStr === 'ligar');
+      renderUI();
+
       if (!mqttClient || !mqttClient.connected) {
-        logEvent('Tentativa de envio sem conexão MQTT ativa. Reconectando...', 'error');
-        reconnectMQTT();
+        logEvent(`Comando local aplicado. [Sem conexão MQTT ativa para enviar em ${targetTopic}]`, 'warn');
         return;
       }
 
-      mqttClient.publish(topic, payloadString, { qos: 0 }, (err) => {
+      mqttClient.publish(targetTopic, payloadString, { qos: 0 }, (err) => {
         if (!err) {
-          logEvent(`Publicado no tópico <strong>${topic}</strong>: <code>${payloadString}</code>`, 'sent');
+          logEvent(`Publicado em <strong>${targetTopic}</strong>: <code>${payloadString}</code>`, 'sent');
         } else {
           logEvent(`Falha ao publicar mensagem: ${err.message}`, 'error');
         }
       });
     }
 
-    // Initialize state & connection on load
+    // Initialize application on page load
     window.addEventListener('load', () => {
-      updateVisualState(false);
+      selectLed('led1');
       connectMQTT();
     });
   </script>
